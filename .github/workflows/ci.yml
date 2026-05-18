@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Lint
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install lint deps
+        run: pip install ruff black
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: black check
+        run: black --check .
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Type check
+  # ---------------------------------------------------------------------------
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install mypy
+        run: pip install mypy
+
+      - name: mypy
+        run: mypy ml/ apps/ --ignore-missing-imports --no-strict-optional
+        continue-on-error: true  # type errors are non-blocking during development
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Unit Tests (CPU only, no GPU, no real data)
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-unit-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-unit-
+
+      - name: Install CPU-only dependencies
+        run: |
+          pip install --upgrade pip
+          # Install torch CPU build first (avoids pulling 2 GB CUDA wheel)
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch_geometric
+          pip install -e ".[dev]" --no-deps || pip install -e "."
+          pip install pytest pytest-cov lightgbm catboost river numpy pandas scikit-learn mlflow
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short -x --ignore=tests/unit/test_models.py
+        # test_models.py requires torch-geometric edge models; run separately
+        continue-on-error: false
+
+      - name: Run model unit tests (with PyG)
+        run: pytest tests/unit/test_models.py -v --tb=short -x
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Integration / Smoke Tests (synthetic data, CPU)
+  # ---------------------------------------------------------------------------
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-integration-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-integration-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch_geometric
+          pip install -e "." || true
+          pip install pytest lightgbm catboost river numpy pandas scikit-learn mlflow
+
+      - name: Smoke train (synthetic data)
+        run: pytest tests/integration/ -v --tb=short -x -m integration
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Job 5: GPU Smoke (self-hosted, RTX 2070 Super)
+  # ---------------------------------------------------------------------------
+  smoke-gpu:
+    name: GPU Smoke
+    runs-on: [self-hosted, gpu]
+    if: github.ref == 'refs/heads/main'
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GPU dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch torch_geometric
+          pip install -e "."
+
+      - name: Smoke — LightGBM fit
+        run: python -m ml.train.cli fit --config configs/lgbm.yaml --output-dir /tmp/artifacts
+
+      - name: Smoke — GraphSAGE forward
+        run: python -c "
+          import torch
+          from ml.models.graphsage import GraphSAGEClassifier, GraphSAGEConfig
+          from torch_geometric.data import Data
+          cfg = GraphSAGEConfig(in_channels=16, hidden_channels=32, out_channels=1, n_layers=2)
+          m = GraphSAGEClassifier(cfg).eval()
+          d = Data(x=torch.randn(100,16), edge_index=torch.randint(0,100,(2,200)))
+          with torch.no_grad():
+              out = m(d)
+          assert out.shape == (100,1), f'Unexpected shape: {out.shape}'
+          print('GPU smoke passed — GraphSAGE output shape:', out.shape)
+          "

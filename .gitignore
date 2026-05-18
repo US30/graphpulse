@@ -1,0 +1,62 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Data (never commit raw / processed data to git — use DVC) ────────────────
+data/raw/
+data/processed/
+data/features/
+data/graph/
+
+# ── Model artifacts & reports ─────────────────────────────────────────────────
+artifacts/
+reports/
+
+# ── Model weight files ────────────────────────────────────────────────────────
+*.onnx
+*.pt
+*.pth
+*.pkl
+*.pickle
+
+# ── DVC internals ─────────────────────────────────────────────────────────────
+.dvc/tmp/
+.dvc/cache/
+
+# ── MLflow ────────────────────────────────────────────────────────────────────
+mlruns/
+mlartifacts/
+
+# ── Tool caches ───────────────────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# ── Node / Next.js (UI) ───────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+
+# ── Redpanda local data ───────────────────────────────────────────────────────
+redpanda_data/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride

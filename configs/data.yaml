@@ -1,0 +1,6 @@
+data_dir: data/raw/ieee_cis
+output_dir: data/features
+train_cutoff: 0.8
+target_col: isFraud
+graph_output_dir: data/graph
+max_nodes: 500000

@@ -1,0 +1,6 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir kafka-python httpx psycopg2-binary
+COPY apps/consumer/ ./apps/consumer/
+COPY apps/__init__.py ./apps/__init__.py
+CMD ["python", "-m", "apps.consumer.main"]

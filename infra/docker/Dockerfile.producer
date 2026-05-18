@@ -1,0 +1,6 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir kafka-python numpy pandas
+COPY apps/producer/ ./apps/producer/
+COPY apps/__init__.py ./apps/__init__.py
+CMD ["python", "-m", "apps.producer.main", "--tps", "10"]

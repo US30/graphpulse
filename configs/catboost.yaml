@@ -1,0 +1,14 @@
+model: catboost
+iterations: 2000
+learning_rate: 0.05
+depth: 6
+l2_leaf_reg: 3.0
+random_strength: 1.0
+bagging_temperature: 1.0
+scale_pos_weight: 20.0
+eval_metric: AUC
+early_stopping_rounds: 100
+random_seed: 42
+verbose: 0
+data_dir: data/raw/ieee_cis
+output_dir: data/features

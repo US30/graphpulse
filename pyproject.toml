@@ -1,0 +1,131 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "graphpulse"
+version = "0.1.0"
+description = "Real-time graph fraud detection — GNN + LightGBM + streaming + online learning"
+requires-python = ">=3.11"
+authors = [
+    { name = "Utkarsh Sinha", email = "sinha.utkarshsinha30@gmail.com" },
+]
+
+dependencies = [
+    # ── Core ML ───────────────────────────────────────────────────────────────
+    "torch>=2.3.0",
+    "lightning>=2.3.0",
+    "einops>=0.8.0",
+    "numpy>=1.26.4",
+    "scipy>=1.13.1",
+    "scikit-learn>=1.5.1",
+
+    # ── Graph ML ──────────────────────────────────────────────────────────────
+    # PyG: TGN, HGT, GraphSAGE
+    "torch-geometric>=2.5.3",
+    "torch-scatter>=2.1.2",
+    "torch-sparse>=0.6.18",
+    # DGL — alternative GNN backend
+    "dgl>=2.1.0",
+    "networkx>=3.3",
+
+    # ── Tabular boosting ──────────────────────────────────────────────────────
+    "lightgbm>=4.4.0",
+    "catboost>=1.2.5",
+    "xgboost>=2.0.3",
+    "shap>=0.45.1",
+
+    # ── Online learning / drift detection ─────────────────────────────────────
+    "river>=0.21.2",          # HoeffdingTree, ADWIN
+    "evidently>=0.4.30",
+
+    # ── Explainability ────────────────────────────────────────────────────────
+    "captum>=0.7.0",
+
+    # ── Feature store ─────────────────────────────────────────────────────────
+    "feast>=0.40.0",
+
+    # ── Streaming ─────────────────────────────────────────────────────────────
+    "kafka-python>=2.0.2",       # Redpanda Kafka API
+    "confluent-kafka>=2.5.0",
+
+    # ── MLOps ─────────────────────────────────────────────────────────────────
+    "mlflow>=2.14.1",
+    "dvc[s3]>=3.51.2",
+    "optuna>=3.6.1",
+    "optuna-integration[mlflow]>=3.6.1",
+    "hydra-core>=1.3.2",
+    "omegaconf>=2.3.0",
+
+    # ── Serving / Backend ─────────────────────────────────────────────────────
+    "fastapi>=0.111.1",
+    "uvicorn[standard]>=0.30.1",
+    "celery[redis]>=5.4.0",
+    "psycopg2-binary>=2.9.9",
+    "sqlalchemy>=2.0.31",
+    "alembic>=1.13.2",
+    "redis>=5.0.7",
+    "minio>=7.2.7",
+
+    # ── Export / Inference ────────────────────────────────────────────────────
+    "onnx>=1.16.1",
+    "onnxruntime>=1.18.0",
+
+    # ── Data ──────────────────────────────────────────────────────────────────
+    "polars>=1.1.0",
+    "pyarrow>=17.0.0",
+    "pandas>=2.2.2",
+
+    # ── Monitoring ────────────────────────────────────────────────────────────
+    "prometheus-client>=0.20.0",
+
+    # ── Utils ─────────────────────────────────────────────────────────────────
+    "tqdm>=4.66.4",
+    "rich>=13.7.1",
+    "pydantic>=2.8.2",
+    "pydantic-settings>=2.3.4",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",
+    "sentry-sdk[fastapi]>=2.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.23.7",
+    "ruff>=0.5.2",
+    "mypy>=1.10.1",
+    "pre-commit>=3.7.1",
+    "ipykernel>=6.29.5",
+]
+
+[project.scripts]
+graphpulse-train   = "ml.train.cli:main"
+graphpulse-ingest  = "scripts.download_ieee:main"
+graphpulse-replay  = "scripts.replay_stream:main"
+graphpulse-bench   = "scripts.bench:main"
+
+# ── Hatch build ───────────────────────────────────────────────────────────────
+[tool.hatch.build.targets.wheel]
+packages = ["ml", "apps", "services"]
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length    = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ANN"]
+ignore = ["ANN101", "ANN102", "ANN401"]
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+strict               = true
+ignore_missing_imports = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+asyncio_mode = "auto"
+addopts      = "--cov=ml --cov=apps --cov-report=term-missing -q"

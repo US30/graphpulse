@@ -1,0 +1,17 @@
+redpanda:
+  data_directory: /var/lib/redpanda/data
+  developer_mode: true
+  kafka_api:
+    - address: 0.0.0.0
+      port: 9092
+  admin:
+    - address: 0.0.0.0
+      port: 9644
+
+rpk:
+  kafka_api:
+    brokers:
+      - localhost:9092
+  admin_api:
+    addresses:
+      - localhost:9644

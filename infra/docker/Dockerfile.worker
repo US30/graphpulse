@@ -1,0 +1,28 @@
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git curl && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml .
+RUN pip install --no-cache-dir \
+    torch-geometric \
+    lightgbm \
+    catboost \
+    shap \
+    river \
+    mlflow \
+    celery[redis] \
+    polars \
+    pyarrow \
+    kafka-python \
+    evidently \
+    prometheus-client \
+    feast \
+    joblib \
+    sqlalchemy \
+    psycopg2-binary \
+    httpx \
+    scikit-learn
+# PyG extra deps (CPU fallback; GPU-specific wheels installed separately if needed)
+RUN pip install --no-cache-dir torch-scatter torch-sparse \
+    -f https://data.pyg.org/whl/torch-2.3.0+cpu.html || true
+COPY . .
+CMD ["celery", "-A", "apps.api.celery_app.celery_app", "worker", "--loglevel=info", "--queues=fraud", "--concurrency=2"]

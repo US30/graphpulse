@@ -1,0 +1,77 @@
+stages:
+  # ── 1. Data acquisition ────────────────────────────────────────────────────
+  download:
+    cmd: python scripts/download_ieee.py
+    outs:
+      - data/raw/ieee_cis/
+
+  # ── 2. Tabular feature engineering ────────────────────────────────────────
+  build_features:
+    cmd: python -m ml.data.tabular_dataset build-features
+    deps:
+      - ml/data/tabular_dataset.py
+      - data/raw/ieee_cis/
+    outs:
+      - data/features/
+
+  # ── 3. Transaction graph construction ────────────────────────────────────
+  build_graph:
+    cmd: python -m ml.data.graph_builder build
+    deps:
+      - ml/data/graph_builder.py
+      - data/features/
+    outs:
+      - data/graph/
+
+  # ── 4. LightGBM tabular baseline ─────────────────────────────────────────
+  train_lgbm:
+    cmd: python -m ml.train.cli fit --config configs/lgbm.yaml
+    deps:
+      - ml/models/lgbm.py
+      - ml/train/lgbm_trainer.py
+      - data/features/
+      - configs/lgbm.yaml
+    outs:
+      - artifacts/lgbm/
+    metrics:
+      - artifacts/lgbm/metrics.json
+
+  # ── 5. Temporal Graph Network (TGN) ──────────────────────────────────────
+  train_tgn:
+    cmd: python -m ml.train.cli fit --config configs/tgn.yaml
+    deps:
+      - ml/models/tgn.py
+      - ml/train/gnn_module.py
+      - data/graph/
+      - configs/tgn.yaml
+    outs:
+      - artifacts/tgn/
+    metrics:
+      - artifacts/tgn/metrics.json
+
+  # ── 6. ONNX export for low-latency serving ───────────────────────────────
+  export_onnx:
+    cmd: python scripts/export_onnx.py
+    deps:
+      - scripts/export_onnx.py
+      - artifacts/lgbm/
+    outs:
+      - artifacts/lgbm/model.onnx
+
+  # ── 7. Latency benchmark ──────────────────────────────────────────────────
+  bench:
+    cmd: python scripts/bench.py
+    deps:
+      - scripts/bench.py
+      - artifacts/
+    metrics:
+      - reports/latency_bench.json
+
+  # ── 8. SHAP explanations ──────────────────────────────────────────────────
+  explain:
+    cmd: python -m ml.explain.shap_wrapper
+    deps:
+      - ml/explain/shap_wrapper.py
+      - artifacts/lgbm/
+    outs:
+      - reports/explanations/
