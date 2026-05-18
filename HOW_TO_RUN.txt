@@ -1,0 +1,115 @@
+GraphPulse — How to Run
+========================
+Real-time streaming fraud detection: TGN + LightGBM + Redpanda + River ADWIN + SHAP
+
+PREREQUISITES
+-------------
+  Python       3.11+
+  Docker       25+ (with Docker Compose)
+  CUDA Toolkit 12.1  (GPU training; skip for CPU-only)
+  GPU          RTX 2070 Super 8 GB or better
+  Kaggle API   account + API key (for IEEE-CIS dataset)
+
+STEP 1 — Clone & Install
+-------------------------
+  git clone https://github.com/US30/graphpulse.git
+  cd graphpulse
+  python -m venv .venv
+  source .venv/bin/activate          # Windows: .venv\Scripts\activate
+  pip install -e ".[dev]"
+
+  PyG (GPU build):
+  pip install torch-geometric torch-scatter torch-sparse \
+      --extra-index-url https://data.pyg.org/whl/torch-2.3.0+cu121.html
+
+  CPU-only build: replace cu121 with cpu
+
+STEP 2 — Configure
+-------------------
+  cp .env.example .env
+  # Edit .env and set:
+  #   KAGGLE_USERNAME=<your_username>
+  #   KAGGLE_KEY=<your_api_key>
+
+STEP 3 — Start Infrastructure
+-------------------------------
+  make up
+  # Services available after startup:
+  #   FastAPI scoring  http://localhost:8000/docs
+  #   Redpanda Console http://localhost:8080
+  #   MLflow           http://localhost:5001
+  #   Grafana          http://localhost:3001
+  #   Prometheus       http://localhost:9090
+  #   MinIO Console    http://localhost:9001
+
+  Create Kafka topics:
+  docker exec redpanda rpk topic create graphpulse.transactions graphpulse.scores
+
+STEP 4 — Download Data
+-----------------------
+  make download-ieee        # Downloads IEEE-CIS (590k rows) to data/raw/ieee_cis/
+  make download-elliptic    # Optional: Elliptic Bitcoin graph
+
+STEP 5 — Feature Engineering + Graph Build
+-------------------------------------------
+  make ingest               # tabular features -> data/features/features.parquet
+  make graph                # PyG graph files -> data/graph/
+
+STEP 6 — Train Models
+----------------------
+  make train-lgbm           # LightGBM  (~5 min, CPU)
+  make train-catboost       # CatBoost  (~8 min, CPU)
+  make train-graphsage      # GraphSAGE (~20 min, GPU)
+  make train-tgn            # TGN       (~90 min, GPU)
+  make train-hgt            # HGT       (~90 min, GPU)
+  make train-all            # all models sequentially
+
+  Run HPO (optional, Optuna 50 trials):
+  make hpo-lgbm
+
+STEP 7 — Streaming Pipeline
+-----------------------------
+  # Terminal 1: replay IEEE-CIS at 100 TPS
+  make replay
+
+  # Terminal 2: consumer scores each transaction via FastAPI
+  docker compose up consumer
+
+  # Terminal 3: watch fraud rate in Grafana -> http://localhost:3001
+
+STEP 8 — Export + Benchmark
+-----------------------------
+  make export               # LightGBM -> ONNX, GraphSAGE -> TorchScript
+  make bench                # p50/p95/p99 latency -> reports/bench.json
+
+STEP 9 — Explainability
+------------------------
+  make explain              # SHAP summary + per-transaction SHAP CSV
+                            # GNNExplainer subgraph report
+  # View SHAP for a scored transaction:
+  curl http://localhost:8000/explain/<transaction_id>
+
+STEP 10 — Tests
+----------------
+  make test                 # unit tests
+  make smoke                # integration smoke tests (synthetic data, no real data needed)
+
+FULL DVC PIPELINE (reproduce everything)
+-----------------------------------------
+  make dvc-repro            # runs all DVC stages from scratch
+
+GPU MEMORY REFERENCE
+---------------------
+  GraphSAGE  ~1.5 GB   batch_size=2048
+  TGN        ~2-3 GB   batch_size=512
+  HGT        ~3 GB     batch_size=256
+
+  OOM? Lower batch_size in configs/<model>.yaml and rerun.
+
+USEFUL MAKE TARGETS
+--------------------
+  make up            start all Docker services
+  make down          stop and remove containers
+  make logs          tail all service logs
+  make lint          ruff + black check
+  make clean         remove __pycache__ and .pyc files
